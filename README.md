@@ -15,10 +15,13 @@ ETL proces zahŕňa extrahovanie, čistenie a transformáciu týchto dát do via
 
 ---
 ### **1.1 Dátová architektúra**
+
+### **ERD diagram**
+
 Surové dáta sú usporiadané v relačnom modeli znázornenom na entitno-relačnom diagrame (ERD):
 
 <p align="center">
-  <img src="https://github.com/SomeUnknownNickname/IMDb/blob/main/IMDB_ERD.png">
+  <img src="https://github.com/SomeUnknownNickname/IMDb/blob/main/ERD_schema.png">
   <br>
   <em>Obrázok 1 Entitno-relačná schéma IMDb</em>
 </p>
@@ -27,58 +30,31 @@ Surové dáta sú usporiadané v relačnom modeli znázornenom na entitno-relač
 ## **2 Dimenzionálny model**
 Navrhnutý bol hviezdicový model (star schema), pre efektívnu analýzu filmových hodnotení, kde centrálny bod predstavuje faktová tabuľka fact_ratings, ktorá je prepojená s nasledujúcimi dimenziami:
 
-- **`dim_users`**:
-Obsahuje demografické údaje o používateľoch, ako sú veková kategória, pohlavie, povolanie, vzdelanie a PSČ.
 
-Atribúty: ID používateľa, veková skupina, pohlavie, zamestnanie, úroveň vzdelania, PSČ.
-
-
-- **`dim_movies`**:
-Obsahuje podrobné informácie o filmoch vrátane názvu, roku vydania, dĺžky filmu a štúdia.
-
-Atribúty: ID filmu, názov, rok vydania, dĺžka filmu, štúdio.
+- **`dim_movie`**:
+Obsahuje podrobné informácie o filmoch vrátane názvu, datumu vydania, dĺžky filmu a štúdia.
 
 
-- **`dim_actors`**:
-Obsahuje informácie o hercoch vrátane mena, priezviska a ich postavenia alebo úlohy vo filme.
 
-Atribúty: ID herca, meno, priezvisko, postavenie.
-
-
-- **`dim_directors`**:
-Obsahuje údaje o režiséroch, ako sú meno, priezvisko a ich význam alebo postavenie.
-
-Atribúty: ID režiséra, meno, priezvisko, postavenie.
+- **`dim_names`**:
+Obsahuje informácie o ľuďoch, ktorí sa podieľali na tvorbe filmov (názov, slávne filmy, kategória).
 
 
-- **`dim_date`**:
-Zahrňuje informácie o dátumoch hodnotení, ako sú deň, mesiac, rok, názov dňa, číslo týždňa a štvrťrok.
 
-Atribúty: ID dátumu, dátum, deň, názov dňa, mesiac, názov mesiaca, rok, týždeň, štvrťrok.
-
-
-- **`dim_time`**:
-Obsahuje podrobné časové údaje hodnotení, ako sú hodina a formát AM/PM.
-
-Atribúty: ID času, čas, hodina, AM/PM.
-
-
-- **`genres`**:
+- **`sdim_genres`**:
 Obsahuje informácie o filmových žánroch.
 
-Atribúty: ID žánru, názov žánru.
 
 
-- **`movies_genres`**:
-Prepojovacia tabuľka medzi filmami a ich žánrami.
+- **`movies_genres_bridge`**:
+Premosťovacia tabuľka spájajúca filmy so žánrami na implementáciu spojenia medzi žánrami a filmami.
 
-Atribúty: ID filmu, ID žánru.
 
 
 Štruktúra hviezdicového modelu je znázornená na diagrame nižšie. Diagram ukazuje prepojenia medzi faktovou tabuľkou a dimenziami, čo zjednodušuje pochopenie a implementáciu modelu.
 
 <p align="center">
-  <img src="https://github.com/SomeUnknownNickname/IMDb/blob/main/Dimenzionalny_model.png">
+  <img src="https://github.com/SomeUnknownNickname/IMDb/blob/main/star_sheme.png">
   <br>
   <em>Obrázok 2 Schéma hviezdy pre IMDb</em>
 </p>
@@ -110,7 +86,7 @@ V prípade tabuľky Names bolo dodatočne použité nastavenie ```NULL_IF = ('NU
 
 V tejto fáze boli dáta zo staging tabuliek vyčistené, transformované a obohatené. Hlavným cieľom bolo pripraviť dimenzie a faktovú tabuľku, ktoré umožnia jednoduchú a efektívnu analýzu.
 
-Dimenzia dim_names uchováva údaje o jednotlivcoch (pravdepodobne hercoch alebo režiséroch) spojených s filmami. Obsahuje informácie o ich menách, kategóriách, dôležitých projektoch a ďalšie údaje. Ide o dimenziu typu SCD 2, ktorá umožňuje sledovať historické zmeny v stĺpci filmov, podľa ktorých sú známe, a možnú zmenu kategórie (herec/režisér).
+Dimenzia `dim_names` uchováva údaje o jednotlivcoch (pravdepodobne hercoch alebo režiséroch) spojených s filmami. Obsahuje informácie o ich menách, kategóriách, dôležitých projektoch a ďalšie údaje. Ide o dimenziu typu `SCD 2`, ktorá umožňuje sledovať historické zmeny v stĺpci filmov, podľa ktorých sú známe, a možnú zmenu kategórie (herec/režisér).
 
 ```sql
 CREATE TABLE dim_names AS
@@ -130,7 +106,36 @@ LEFT JOIN role_mapping rm
     ON n.id = rm.name_id;
 ```
 
-Faktová tabuľka fact_raitings obsahuje záznamy o hodnoteniach filmov a je prepojená na všetky relevantné dimenzie. Táto tabuľka zahŕňa kľúčové metriky, ako je priemerné hodnotenie, celkový počet hlasov, mediánové hodnotenie, a obsahuje aj časové údaje, ako je dátum publikácie filmu. Taktiež umožňuje analýzu vzťahov medzi filmami, režisérmi a dátumami.
+Dimenzia `dim_movie` je navrhnutá tak, aby uchovávala informácie o filmoch a ich základných atribútoch. Obsahuje údaje ako názov filmu, dátum vydania (s rozpadom na deň, mesiac a rok), trvanie, krajinu pôvodu, celosvetové tržby a produkčnú spoločnosť. Táto dimenzia je štruktúrovaná s cieľom umožniť podrobné analýzy filmov na základe časových aspektov a geografického pôvodu.
+
+Z hľadiska SCD je táto dimenzia klasifikovaná ako `SCD Typ 0`. To znamená, že existujúce záznamy v tejto dimenzii sú nemenné a uchovávajú statické informácie o filmoch v čase načítania dát. Akékoľvek zmeny (napríklad aktualizácia názvu filmu alebo krajiny) sa v tejto dimenzii neprepisujú.
+
+V prípade, že by vznikla potreba sledovať zmeny v atribútoch filmu (napríklad zmena produkčnej spoločnosti alebo revidovaný dátum vydania), bolo by možné prehodnotiť klasifikáciu na:
+
+`SCD Typ 1`: Priama aktualizácia hodnôt bez uchovávania histórie.
+
+`SCD Typ 2`: Uchovávanie histórie zmien pomocou verzií záznamov a atribútov start_date, end_date a is_current.
+V aktuálnom modeli však táto potreba neexistuje, a preto je dimenzia dim_movie navrhnutá ako SCD Typ 0 s možnosťou rozširovania o nové záznamy podľa potreby.
+
+
+```sql
+CREATE TABLE dim_movie AS
+SELECT
+    id AS movie_id,
+    title,
+    date_published,
+    duration,
+    country,
+    DAY(date_published) AS day,      
+    MONTH(date_published) AS month,  
+    YEAR(date_published) AS year,     
+    worlwide_gross_income,
+    production_company
+FROM movie
+WHERE date_published IS NOT NULL;
+```
+
+Faktová tabuľka `fact_raitings` obsahuje záznamy o hodnoteniach filmov a je prepojená na všetky relevantné dimenzie. Táto tabuľka zahŕňa kľúčové metriky, ako je priemerné hodnotenie, celkový počet hlasov, mediánové hodnotenie, a obsahuje aj časové údaje, ako je dátum publikácie filmu. Taktiež umožňuje analýzu vzťahov medzi filmami, režisérmi a dátumami.
 
 ```sql
 DROP TABLE IF EXISTS fact_raitings;
@@ -172,7 +177,7 @@ ETL proces v Snowflake umožnil transformáciu pôvodných dát z formátu .csv 
 Dashboard obsahuje `5 vizualizácií`, ktoré poskytujú základný prehľad o kľúčových metrikách a trendoch týkajúcich sa kníh, používateľov a hodnotení. Tieto vizualizácie odpovedajú na dôležité otázky a umožňujú lepšie pochopiť správanie používateľov a ich preferencie.
 
 <p align="center">
-  <img src="" alt="ERD Schema">
+  <img src="https://github.com/SomeUnknownNickname/IMDb/blob/main/IMDb_dashboard.png" alt="ERD Schema">
   <br>
   <em>Obrázok 3 Dashboard IMDB datasetu</em>
 </p>
